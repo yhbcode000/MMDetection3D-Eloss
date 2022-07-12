@@ -29,6 +29,8 @@ class SECOND(BaseModule):
                  norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
                  conv_cfg=dict(type='Conv2d', bias=False),
                  init_cfg=None,
+                 require_net_info=False,
+                 info2local=False,
                  pretrained=None):
         super(SECOND, self).__init__(init_cfg=init_cfg)
         assert len(layer_strides) == len(layer_nums)
@@ -74,6 +76,9 @@ class SECOND(BaseModule):
             self.init_cfg = dict(type='Pretrained', checkpoint=pretrained)
         else:
             self.init_cfg = dict(type='Kaiming', layer='Conv2d')
+        
+        self.require_net_info = require_net_info
+        self.info2local = info2local
 
     def forward(self, x):
         """Forward function.
@@ -85,7 +90,23 @@ class SECOND(BaseModule):
             tuple[torch.Tensor]: Multi-scale features.
         """
         outs = []
-        for i in range(len(self.blocks)):
-            x = self.blocks[i](x)
+        net_info = []
+        for block in self.blocks:
+            layer_info = []
+            for layer in block:
+                x = layer(x)
+                layer_info.append(x)
+            net_info.append(layer_info)
             outs.append(x)
-        return tuple(outs)
+            
+        # 保存历史记录到本地
+        if self.info2local:
+            file = f"work_dirs/result_evaluate_folder/net_info/noise-base_1middle_layer{time.time()}.pickle"
+            with open(file, "wb") as f:
+                pickle.dump(tuple(net_info),f)
+        
+        if self.require_net_info:
+            return tuple(outs), tuple(net_info)
+        else:
+            return tuple(outs)
+

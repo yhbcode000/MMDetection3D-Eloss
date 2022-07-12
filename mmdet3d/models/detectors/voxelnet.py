@@ -19,6 +19,9 @@ class VoxelNet(SingleStage3DDetector):
                  voxel_encoder,
                  middle_encoder,
                  backbone,
+                 
+                 with_eloss=False,
+                 
                  neck=None,
                  bbox_head=None,
                  train_cfg=None,
@@ -36,6 +39,9 @@ class VoxelNet(SingleStage3DDetector):
         self.voxel_layer = Voxelization(**voxel_layer)
         self.voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
         self.middle_encoder = builder.build_middle_encoder(middle_encoder)
+        self.with_eloss = with_eloss
+        if with_eloss:
+            self.eloss = builder.build_loss(dict(type = 'EntropyLoss'))
 
     def extract_feat(self, points, img_metas=None):
         """Extract features from points."""
@@ -43,7 +49,12 @@ class VoxelNet(SingleStage3DDetector):
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
-        x = self.backbone(x)
+        
+        if self.with_eloss:
+            x, self.net_info = self.backbone(x)
+        else:
+            x = self.backbone(x)
+            
         if self.with_neck:
             x = self.neck(x)
         return x
@@ -93,6 +104,10 @@ class VoxelNet(SingleStage3DDetector):
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        
+        if self.with_eloss:
+            losses.update(self.eloss(self.net_info))
+            
         return losses
 
     def simple_test(self, points, img_metas, imgs=None, rescale=False):
