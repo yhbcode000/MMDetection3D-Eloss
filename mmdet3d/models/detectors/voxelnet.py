@@ -51,13 +51,15 @@ class VoxelNet(SingleStage3DDetector):
         x = self.middle_encoder(voxel_features, coors, batch_size)
         
         if self.with_eloss:
-            x, self.net_info = self.backbone(x)
+            x, net_info = self.backbone(x)
+            if self.with_neck:
+                x = self.neck(x)
+            return x, net_info
         else:
             x = self.backbone(x)
-            
-        if self.with_neck:
-            x = self.neck(x)
-        return x
+            if self.with_neck:
+                x = self.neck(x)
+            return x
 
     @torch.no_grad()
     @force_fp32()
@@ -99,20 +101,28 @@ class VoxelNet(SingleStage3DDetector):
         Returns:
             dict: Losses of each branch.
         """
-        x = self.extract_feat(points, img_metas)
+        if self.with_eloss:
+            x, net_info = self.extract_feat(points, img_metas)
+        else:
+            x = self.extract_feat(points, img_metas)
+            
         outs = self.bbox_head(x)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
         
         if self.with_eloss:
-            losses.update(self.eloss(self.net_info))
+            losses.update(self.eloss(net_info))
             
         return losses
 
     def simple_test(self, points, img_metas, imgs=None, rescale=False):
         """Test function without augmentaiton."""
-        x = self.extract_feat(points, img_metas)
+        if self.with_eloss:
+            x, net_info = self.extract_feat(points, img_metas)
+        else:
+            x = self.extract_feat(points, img_metas)
+            
         outs = self.bbox_head(x)
         bbox_list = self.bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)

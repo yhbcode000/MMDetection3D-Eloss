@@ -42,8 +42,8 @@ model = dict(
             reshape_out=True)))
 
 data = dict(
-    samples_per_gpu=6,
-    workers_per_gpu=6
+    samples_per_gpu=4,
+    workers_per_gpu=4
     )
 
 fp16 = dict(loss_scale=32.)
