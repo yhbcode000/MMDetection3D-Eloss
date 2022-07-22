@@ -98,6 +98,8 @@ data = dict(
     val=dict(pipeline=test_pipeline, classes=class_names),
     test=dict(pipeline=test_pipeline, classes=class_names))
 
+# exp01
 runner = dict(max_epochs=40)
 
-fp16 = dict(loss_scale=32.)
+cudnn_benchmark = True
+# fp16 = dict(loss_scale=32.)

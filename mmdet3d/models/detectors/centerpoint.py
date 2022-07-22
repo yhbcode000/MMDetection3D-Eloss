@@ -4,6 +4,7 @@ import torch
 from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d
 from ..builder import DETECTORS
 from .mvx_two_stage import MVXTwoStageDetector
+from .. import builder
 
 
 @DETECTORS.register_module()
@@ -17,6 +18,9 @@ class CenterPoint(MVXTwoStageDetector):
                  pts_fusion_layer=None,
                  img_backbone=None,
                  pts_backbone=None,
+                 
+                 with_eloss=False,
+                 
                  img_neck=None,
                  pts_neck=None,
                  pts_bbox_head=None,
@@ -32,6 +36,9 @@ class CenterPoint(MVXTwoStageDetector):
                              img_backbone, pts_backbone, img_neck, pts_neck,
                              pts_bbox_head, img_roi_head, img_rpn_head,
                              train_cfg, test_cfg, pretrained, init_cfg)
+        self.with_eloss = with_eloss
+        if with_eloss:
+            self.eloss = builder.build_loss(dict(type = 'EntropyLoss'))
 
     def extract_pts_feat(self, pts, img_feats, img_metas):
         """Extract features of points."""
@@ -42,7 +49,12 @@ class CenterPoint(MVXTwoStageDetector):
         voxel_features = self.pts_voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0] + 1
         x = self.pts_middle_encoder(voxel_features, coors, batch_size)
-        x = self.pts_backbone(x)
+        
+        if self.with_eloss:
+            x, self.net_info = self.pts_backbone(x)
+        else:
+            x = self.pts_backbone(x)
+            
         if self.with_pts_neck:
             x = self.pts_neck(x)
         return x
@@ -71,6 +83,8 @@ class CenterPoint(MVXTwoStageDetector):
         outs = self.pts_bbox_head(pts_feats)
         loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
         losses = self.pts_bbox_head.loss(*loss_inputs)
+        if self.with_eloss:
+            losses.update(self.eloss(self.net_info))
         return losses
 
     def simple_test_pts(self, x, img_metas, rescale=False):

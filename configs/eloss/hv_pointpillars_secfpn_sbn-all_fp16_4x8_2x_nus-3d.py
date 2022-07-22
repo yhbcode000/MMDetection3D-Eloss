@@ -46,4 +46,7 @@ data = dict(
     workers_per_gpu=4
     )
 
+# runner = dict(max_epochs=20)
+
+cudnn_benchmark = True
 fp16 = dict(loss_scale=32.)

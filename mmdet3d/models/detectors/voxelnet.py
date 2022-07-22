@@ -42,12 +42,26 @@ class VoxelNet(SingleStage3DDetector):
         self.with_eloss = with_eloss
         if with_eloss:
             self.eloss = builder.build_loss(dict(type = 'EntropyLoss'))
-
+            
+        # reference: https://blog.csdn.net/qq_21997625/article/details/90369838
+        for i,p in enumerate(self.parameters()):
+            # exp02-eloss33
+            if i > 23:
+                p.requires_grad = False
+                
+            # exp02-eloss66
+            # if i < 24 and i > 59:
+            #     p.requires_grad = False
+            
+            # exp02-eloss99
+            # if i < 60 and i > 95:
+            #     p.requires_grad = False
+        
     def extract_feat(self, points, img_metas=None):
         """Extract features from points."""
         voxels, num_points, coors = self.voxelize(points)
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
-        batch_size = coors[-1, 0].item() + 1
+        batch_size = torch.as_tensor(coors[-1, 0].item() + 1)
         x = self.middle_encoder(voxel_features, coors, batch_size)
         
         if self.with_eloss:

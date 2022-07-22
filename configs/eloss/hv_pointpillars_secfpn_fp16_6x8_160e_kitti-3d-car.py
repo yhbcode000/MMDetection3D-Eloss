@@ -90,4 +90,5 @@ data = dict(
 
 runner = dict(max_epochs=40)
 
+cudnn_benchmark = True
 fp16 = dict(loss_scale=32.)
