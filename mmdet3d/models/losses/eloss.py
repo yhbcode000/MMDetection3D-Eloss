@@ -22,7 +22,8 @@ def pairwise_euclidean_distance(x, y):
     yy = torch.pow(y, 2).sum(1, keepdim=True).expand(n, m).t()
     dist = xx + yy - 2 * x @ y.t()
     # clamp()函数可以限定dist内元素的最大最小范围，dist最后开方，得到样本之间的距离矩阵
-    dist = dist.clamp(min=1e-8).sqrt()
+    dist = dist.clamp(min=1e-2).sqrt()
+    dist = torch.nan_to_num(dist, nan=0, posinf=1e4)
     return dist
 
 
@@ -41,6 +42,7 @@ def calculate_entropy(feats, k=1):
             # ball V
             r_ball = dist[n][order[n][K]]
             H_total += r_ball
+    # print(H_total)
     return torch.log(H_total+1)
 
 @weighted_loss
@@ -72,5 +74,4 @@ class EntropyLoss(nn.Module):
             delta_entropy = torch.stack(delta_entropy)
             var += torch.var(delta_entropy)        
         eloss_var = self.loss_weight * layer_entropy_loss(var, 0)
-
         return {"eloss_var": [eloss_var]}

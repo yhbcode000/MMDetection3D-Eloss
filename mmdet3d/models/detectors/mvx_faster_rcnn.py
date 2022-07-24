@@ -20,8 +20,32 @@ class MVXFasterRCNN(MVXTwoStageDetector):
         if with_eloss:
             self.eloss = builder.build_loss(dict(type = 'EntropyLoss'))
             
+            
+    def add_gauss_noise(self, points, prob=1.0, level=1):
+        for i in range(len(points)):
+            if not i % (1//prob) != 0:
+                for _ in range(level):
+                    points[i] += torch.randn_like(points[i])
+        return points
+    
+    def add_sp_noise(self, points, prob=0.5):  
+        max_point = torch.max(points)
+        min_point = torch.min(points)
+        
+        for i in range(len(points)):
+            if not i % (1//prob) != 0:
+                if not i % 2 != 0:
+                    points[i] = max_point
+                else:
+                    points[i] = min_point
+                    
+        return points
+                
     def extract_pts_feat(self, pts, img_feats, img_metas):
         """Extract features of points."""
+        
+        pts = self.add_gauss_noise(pts, prob=0.3, level=1)
+        
         if not self.with_pts_bbox:
             return None
         voxels, num_points, coors = self.voxelize(pts)

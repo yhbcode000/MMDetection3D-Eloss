@@ -57,8 +57,31 @@ class VoxelNet(SingleStage3DDetector):
             # if i < 60 and i > 95:
             #     p.requires_grad = False
         
+    def add_gauss_noise(self, points, prob=1.0, level=1):
+        for i in range(len(points)):
+            if not i % (1//prob) != 0:
+                for _ in range(level):
+                    points[i] += torch.randn_like(points[i])
+        return points
+    
+    def add_sp_noise(self, points, prob=0.5):  
+        max_point = torch.max(points)
+        min_point = torch.min(points)
+        
+        for i in range(len(points)):
+            if not i % (1//prob) != 0:
+                if not i % 2 != 0:
+                    points[i] = max_point
+                else:
+                    points[i] = min_point
+                    
+        return points
+    
     def extract_feat(self, points, img_metas=None):
         """Extract features from points."""
+        
+        points = self.add_gauss_noise(points, prob=0.3, level=1)
+        
         voxels, num_points, coors = self.voxelize(points)
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
         batch_size = torch.as_tensor(coors[-1, 0].item() + 1)
