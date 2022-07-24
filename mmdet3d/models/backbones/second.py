@@ -4,6 +4,7 @@ import warnings
 from mmcv.cnn import build_conv_layer, build_norm_layer
 from mmcv.runner import BaseModule
 from torch import nn as nn
+import time, os, pickle
 
 from ..builder import BACKBONES
 
@@ -29,8 +30,11 @@ class SECOND(BaseModule):
                  norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
                  conv_cfg=dict(type='Conv2d', bias=False),
                  init_cfg=None,
+                 
                  require_net_info=False,
                  info2local=False,
+                 name="",
+                 
                  pretrained=None):
         super(SECOND, self).__init__(init_cfg=init_cfg)
         assert len(layer_strides) == len(layer_nums)
@@ -79,6 +83,8 @@ class SECOND(BaseModule):
         
         self.require_net_info = require_net_info
         self.info2local = info2local
+        self.name = name
+            
 
     def forward(self, x):
         """Forward function.
@@ -101,9 +107,9 @@ class SECOND(BaseModule):
             
         # 保存历史记录到本地
         if self.info2local:
-            file = f"work_dirs/result_evaluate_folder/net_info/noise-base_1middle_layer{time.time()}.pickle"
+            file = f"noise_evaluate/{self.name}/net_info/{time.time()}.pickle"
             with open(file, "wb") as f:
-                pickle.dump(tuple(net_info),f)
+                pickle.dump(tuple(net_info[:1]),f)
         
         if self.require_net_info:
             return tuple(outs), tuple(net_info)

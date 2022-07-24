@@ -53,8 +53,11 @@ model = dict(
             reshape_out=True)))
 
 data = dict(
-    samples_per_gpu=2,
-    workers_per_gpu=2
+    samples_per_gpu=3,
+    workers_per_gpu=4
     )
 
+# runner = dict(max_epochs=20)
+
+cudnn_benchmark = True
 fp16 = dict(loss_scale=32.)

@@ -89,7 +89,7 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=12,
+    samples_per_gpu=8, #3090:12, A100:18
     workers_per_gpu=8,
     train=dict(
         type='RepeatDataset',
@@ -98,4 +98,8 @@ data = dict(
     val=dict(pipeline=test_pipeline, classes=class_names),
     test=dict(pipeline=test_pipeline, classes=class_names))
 
-fp16 = dict(loss_scale=32.)
+# exp01
+runner = dict(max_epochs=40)
+
+cudnn_benchmark = True
+# fp16 = dict(loss_scale=32.)

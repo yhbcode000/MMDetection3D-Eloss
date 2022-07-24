@@ -42,22 +42,61 @@ class VoxelNet(SingleStage3DDetector):
         self.with_eloss = with_eloss
         if with_eloss:
             self.eloss = builder.build_loss(dict(type = 'EntropyLoss'))
-
+            
+        # reference: https://blog.csdn.net/qq_21997625/article/details/90369838
+        for i,p in enumerate(self.parameters()):
+            # exp02-eloss33
+            if i > 23:
+                p.requires_grad = False
+                
+            # exp02-eloss66
+            # if i < 24 and i > 59:
+            #     p.requires_grad = False
+            
+            # exp02-eloss99
+            # if i < 60 and i > 95:
+            #     p.requires_grad = False
+        
+    def add_gauss_noise(self, points, prob=1.0, level=1):
+        for i in range(len(points)):
+            if not i % (1//prob) != 0:
+                for _ in range(level):
+                    points[i] += torch.randn_like(points[i])
+        return points
+    
+    def add_sp_noise(self, points, prob=0.5):  
+        max_point = torch.max(points)
+        min_point = torch.min(points)
+        
+        for i in range(len(points)):
+            if not i % (1//prob) != 0:
+                if not i % 2 != 0:
+                    points[i] = max_point
+                else:
+                    points[i] = min_point
+                    
+        return points
+    
     def extract_feat(self, points, img_metas=None):
         """Extract features from points."""
+        
+        points = self.add_gauss_noise(points, prob=0.3, level=1)
+        
         voxels, num_points, coors = self.voxelize(points)
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
-        batch_size = coors[-1, 0].item() + 1
+        batch_size = torch.as_tensor(coors[-1, 0].item() + 1)
         x = self.middle_encoder(voxel_features, coors, batch_size)
         
         if self.with_eloss:
-            x, self.net_info = self.backbone(x)
+            x, net_info = self.backbone(x)
+            if self.with_neck:
+                x = self.neck(x)
+            return x, net_info
         else:
             x = self.backbone(x)
-            
-        if self.with_neck:
-            x = self.neck(x)
-        return x
+            if self.with_neck:
+                x = self.neck(x)
+            return x
 
     @torch.no_grad()
     @force_fp32()
@@ -99,20 +138,28 @@ class VoxelNet(SingleStage3DDetector):
         Returns:
             dict: Losses of each branch.
         """
-        x = self.extract_feat(points, img_metas)
+        if self.with_eloss:
+            x, net_info = self.extract_feat(points, img_metas)
+        else:
+            x = self.extract_feat(points, img_metas)
+            
         outs = self.bbox_head(x)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
         
         if self.with_eloss:
-            losses.update(self.eloss(self.net_info))
+            losses.update(self.eloss(net_info))
             
         return losses
 
     def simple_test(self, points, img_metas, imgs=None, rescale=False):
         """Test function without augmentaiton."""
-        x = self.extract_feat(points, img_metas)
+        if self.with_eloss:
+            x, net_info = self.extract_feat(points, img_metas)
+        else:
+            x = self.extract_feat(points, img_metas)
+            
         outs = self.bbox_head(x)
         bbox_list = self.bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
